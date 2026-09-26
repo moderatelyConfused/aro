@@ -253,6 +253,11 @@ expansion_source_loc: Source.Location = undefined,
 poisoned_identifiers: std.StringHashMapUnmanaged(void) = .empty,
 /// Map from Source.Id to macro name in the `#ifndef` condition which guards the source, if any
 include_guards: std.AutoHashMapUnmanaged(Source.Id, []const u8) = .empty,
+/// Sources that have been entered via `#include` or `#import` at least once.
+included_sources: std.AutoHashMapUnmanaged(Source.Id, void) = .empty,
+/// Sources that have been the target of an `#import` directive. Like clang, a
+/// source that has been `#import`ed is never entered again.
+imported_sources: std.AutoHashMapUnmanaged(Source.Id, void) = .empty,
 
 /// Store `keyword_define` and `keyword_undef` tokens.
 /// Used to implement preprocessor debug dump options
@@ -395,6 +400,8 @@ pub fn deinit(pp: *Preprocessor) void {
     pp.char_buf.deinit(gpa);
     pp.poisoned_identifiers.deinit(gpa);
     pp.include_guards.deinit(gpa);
+    pp.included_sources.deinit(gpa);
+    pp.imported_sources.deinit(gpa);
     pp.top_expansion_buf.deinit(gpa);
     pp.hideset.deinit();
     for (pp.expansion_entries.items(.locs)) |locs| TokenWithExpansionLocs.free(locs, gpa);
@@ -844,7 +851,11 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!TokenWithExpans
                         try pp.expectNl(&tokenizer);
                     },
                     .keyword_include => {
-                        try pp.include(&tokenizer, .first);
+                        try pp.include(&tokenizer, .first, .include);
+                        continue;
+                    },
+                    .keyword_import => {
+                        try pp.include(&tokenizer, .first, .import);
                         continue;
                     },
                     .keyword_include_next => {
@@ -852,9 +863,9 @@ fn preprocessExtra(pp: *Preprocessor, source: Source) MacroError!TokenWithExpans
 
                         if (pp.include_depth == 0) {
                             try pp.err(directive_loc, .include_next_outside_header, .{});
-                            try pp.include(&tokenizer, .first);
+                            try pp.include(&tokenizer, .first, .include);
                         } else {
-                            try pp.include(&tokenizer, .next);
+                            try pp.include(&tokenizer, .next, .include);
                         }
                     },
                     .keyword_embed => {
@@ -1782,7 +1793,8 @@ fn handleBuiltinMacro(
 
             const ident_str = pp.expandedSlice(identifier.?);
             return switch (builtin) {
-                .has_attribute => Attribute.Namespaced.fromString(.gnu, null, ident_str) != null,
+                .has_attribute => Attribute.Namespaced.fromString(.gnu, null, ident_str) != null or
+                    (pp.comp.langopts.objc and features.hasObjcAttribute(ident_str)),
                 .has_declspec_attribute => {
                     return if (pp.comp.langopts.declspec_attrs)
                         Attribute.Namespaced.fromString(.declspec, null, ident_str) != null
@@ -3461,7 +3473,9 @@ const EmbedArgIterator = struct {
 };
 
 // Handle a #include directive.
-fn include(pp: *Preprocessor, tokenizer: *Tokenizer, which: Compilation.WhichInclude) MacroError!void {
+const IncludeDirective = enum { include, import };
+
+fn include(pp: *Preprocessor, tokenizer: *Tokenizer, which: Compilation.WhichInclude, directive: IncludeDirective) MacroError!void {
     const first = tokenizer.nextNoWS();
     const new_source = findIncludeSource(pp, tokenizer, first, which) catch |er| switch (er) {
         error.InvalidInclude => return,
@@ -3481,6 +3495,18 @@ fn include(pp: *Preprocessor, tokenizer: *Tokenizer, which: Compilation.WhichInc
     if (pp.include_guards.get(new_source.id)) |guard| {
         if (pp.defines.contains(guard)) return;
     }
+
+    // `#import` semantics (see clang's HeaderSearch::ShouldEnterIncludeFile):
+    // a file that has been `#import`ed is never entered again, and `#import`
+    // itself skips files that were already entered by any directive.
+    switch (directive) {
+        .import => {
+            try pp.imported_sources.put(gpa, new_source.id, {});
+            if (pp.included_sources.contains(new_source.id)) return;
+        },
+        .include => if (pp.imported_sources.contains(new_source.id)) return,
+    }
+    try pp.included_sources.put(gpa, new_source.id, {});
 
     // Run any beforeInclude pragma hooks.
     //
@@ -4081,6 +4107,7 @@ test "Include guards" {
 
                 .keyword_include,
                 .keyword_include_next,
+                .keyword_import,
                 .keyword_embed,
                 .keyword_define,
                 .keyword_defined,

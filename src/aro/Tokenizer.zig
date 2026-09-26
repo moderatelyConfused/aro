@@ -142,6 +142,8 @@ pub const Token = struct {
         tilde,
         hash,
         hash_hash,
+        /// `@`; only meaningful in Objective-C.
+        at,
 
         /// Special token for handling expansion of parameters to builtin preprocessor functions
         macro_param_builtin_func,
@@ -247,6 +249,7 @@ pub const Token = struct {
         // Preprocessor directives
         keyword_include,
         keyword_include_next,
+        keyword_import,
         keyword_embed,
         keyword_define,
         keyword_defined,
@@ -371,6 +374,7 @@ pub const Token = struct {
             switch (id) {
                 .keyword_include,
                 .keyword_include_next,
+                .keyword_import,
                 .keyword_embed,
                 .keyword_define,
                 .keyword_defined,
@@ -534,6 +538,7 @@ pub const Token = struct {
             switch (id.*) {
                 .keyword_include,
                 .keyword_include_next,
+                .keyword_import,
                 .keyword_embed,
                 .keyword_define,
                 .keyword_undef,
@@ -626,6 +631,7 @@ pub const Token = struct {
                 .period => ".",
                 .ellipsis => "...",
                 .caret => "^",
+                .at => "@",
                 .caret_equal => "^=",
                 .plus => "+",
                 .plus_plus => "++",
@@ -733,6 +739,7 @@ pub const Token = struct {
                 .keyword_dfloat64x => "_Decimal64x",
                 .keyword_include => "include",
                 .keyword_include_next => "include_next",
+                .keyword_import => "import",
                 .keyword_embed => "embed",
                 .keyword_define => "define",
                 .keyword_defined => "defined",
@@ -1058,6 +1065,7 @@ pub const Token = struct {
         // Preprocessor directives
         .{ "include", .keyword_include },
         .{ "include_next", .keyword_include_next },
+        .{ "import", .keyword_import },
         .{ "embed", .keyword_embed },
         .{ "define", .keyword_define },
         .{ "defined", .keyword_defined },
@@ -1315,6 +1323,10 @@ pub fn next(self: *Tokenizer) Token {
                 id = .eof;
             } else {
                 id = .invalid;
+                self.index += 1;
+            },
+            '@' => {
+                id = .at;
                 self.index += 1;
             },
             0x80...0xFF => continue :loop .extended_identifier,

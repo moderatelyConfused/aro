@@ -182,6 +182,11 @@ default_symbol_visibility: Attribute.Args.Visibility = .default,
 
 blocks: bool = false,
 
+/// Objective-C mode: predefines `__OBJC__` and friends and enables the
+/// `__has_feature(objc_*)` checks. The parser itself does not understand
+/// Objective-C declarations; translate-c rewrites them before parsing.
+objc: bool = false,
+
 /// If non-null, contains ARM LDREX/STREX mask. Only populated on ARM targets.
 arm_ldrex: ?ArmLdrex = null,
 /// Whether the target supports AVR's non-standard 24-bit integer types.

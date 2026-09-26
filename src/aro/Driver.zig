@@ -839,7 +839,10 @@ pub fn parseArgs(
                     }
                     lang = args[i];
                 }
-                if (!mem.eql(u8, lang, "none") and !mem.eql(u8, lang, "c")) {
+                if (mem.eql(u8, lang, "objective-c") or mem.eql(u8, lang, "objective-c-header")) {
+                    d.comp.langopts.objc = true;
+                    d.comp.langopts.blocks = true;
+                } else if (!mem.eql(u8, lang, "none") and !mem.eql(u8, lang, "c")) {
                     try d.err("language not recognized: '{s}'", .{lang});
                 }
             } else if (mem.startsWith(u8, arg, "-flto")) {

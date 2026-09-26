@@ -1411,6 +1411,20 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
     if (comp.langopts.blocks) {
         try define(w, "__BLOCKS__");
     }
+
+    // Objective-C
+    if (comp.langopts.objc) {
+        try w.writeAll(
+            \\#define __OBJC__ 1
+            \\#define __OBJC2__ 1
+            \\#define OBJC_NEW_PROPERTIES 1
+            \\
+        );
+        // Matches clang: `BOOL` is a real `bool` on 64-bit ARM Apple platforms
+        // and `signed char` everywhere else.
+        const bool_is_bool = comp.target.os.tag.isDarwin() and comp.target.cpu.arch == .aarch64;
+        try w.print("#define __OBJC_BOOL_IS_BOOL {d}\n", .{@intFromBool(bool_is_bool)});
+    }
 }
 
 const RiscvFloatAbi = enum { soft, single, double };
