@@ -1424,6 +1424,18 @@ fn generateSystemDefines(comp: *Compilation, w: *Io.Writer) !void {
         // and `signed char` everywhere else.
         const bool_is_bool = comp.target.os.tag.isDarwin() and comp.target.cpu.arch == .aarch64;
         try w.print("#define __OBJC_BOOL_IS_BOOL {d}\n", .{@intFromBool(bool_is_bool)});
+        // Interface Builder annotations, which clang also predefines in
+        // Objective-C mode (Apple's headers rely on that, `NSNibDeclarations.h`
+        // only provides `#ifndef` fallbacks). Unlike clang's definitions these
+        // carry no attributes, so that they never disturb parsing.
+        try w.writeAll(
+            \\#define IBOutlet
+            \\#define IBOutletCollection(ClassName)
+            \\#define IBAction void
+            \\#define IBInspectable
+            \\#define IB_DESIGNABLE
+            \\
+        );
     }
 }
 

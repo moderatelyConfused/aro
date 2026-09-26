@@ -19,7 +19,9 @@ Aro's parser runs.
 - `LangOpts.zig`, `Driver.zig`: `-x objective-c` / `-x objective-c-header` set
   the new `LangOpts.objc` flag and enable blocks.
 - `Compilation.zig`: when `LangOpts.objc` is set, `__OBJC__`, `__OBJC2__`,
-  `OBJC_NEW_PROPERTIES` and `__OBJC_BOOL_IS_BOOL` are predefined like clang does.
+  `OBJC_NEW_PROPERTIES` and `__OBJC_BOOL_IS_BOOL` are predefined like clang does,
+  as are the Interface Builder macros `IBAction` (as `void`), `IBOutlet`,
+  `IBOutletCollection`, `IBInspectable` and `IB_DESIGNABLE` (empty).
 - `features.zig`: `__has_feature(blocks)` follows `LangOpts.blocks`, and the
   `objc_*` features are reported when `LangOpts.objc` is set (except ARC and
   `objc_bool`, which are reported as unavailable on purpose so that headers keep
